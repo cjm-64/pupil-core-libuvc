@@ -1,6 +1,7 @@
 #include <iostream>
 #include "stdio.h"
 #include "unistd.h"
+#include "string"
 #include "libuvc/libuvc.h"
 
 // Computer Vision
@@ -14,6 +15,8 @@ using namespace cv;
 using namespace std;
 
 int run_count = 0;
+
+Mat RedGreenBlue;
 
 void cb(uvc_frame_t *frame, void *ptr) {
     uvc_frame_t *bgr;
@@ -34,78 +37,29 @@ void cb(uvc_frame_t *frame, void *ptr) {
 
     printf("callback! frame_format = %d, width = %d, height = %d, length = %lu\n",frame->frame_format, frame->width, frame->height, frame->data_bytes);
 
-    switch (frame->frame_format) {
-        case UVC_FRAME_FORMAT_H264:
-            printf("H264\n");
-            /* use `ffplay H264_FILE` to play */
-            /* fp = fopen(H264_FILE, "a");
-             * fwrite(frame->data, 1, frame->data_bytes, fp);
-             * fclose(fp); */
-            break;
-        case UVC_COLOR_FORMAT_MJPEG:
-            printf("MJPEG\n");
-//            ret = uvc_any2bgr(frame, bgr);
-            ret = uvc_mjpeg2gray(frame, bgr);
-            if (ret) {
-                uvc_perror(ret, "uvc_any2bgr");
-                uvc_free_frame(bgr);
-                return;
-            }
 
-            uvc_mjpeg2rgb(frame, bgr);
-//            sprintf(filename, "%d%s", jpeg_count++, MJPEG_FILE);
-//            fp = fopen(filename, "w");
-//            fwrite(frame->data, 1, frame->data_bytes, fp);
-//            fclose(fp);
-            break;
-        case UVC_COLOR_FORMAT_YUYV:
-            printf("YUYV\n");
-            /* Do the BGR conversion */
-            ret = uvc_any2bgr(frame, bgr);
-            if (ret) {
-                uvc_perror(ret, "uvc_any2bgr");
-                uvc_free_frame(bgr);
-                return;
-            }
-            break;
-        default:
-            break;
-    }
 
-    if (frame->sequence % 30 == 0) {
-        printf(" * got image %u\n",  frame->sequence);
-    }
-    cout << "bRows: " << bgr->width << " bCols: " << bgr->width << endl;
+    cout << "Frame num: " << frame->sequence << endl;
+    //cout << "bRows: " << bgr->width << " bCols: " << bgr->width << endl;
     cout << "fRows: " << frame->width << " fCols: " << frame->width << endl;
-    Mat image(bgr->width, bgr->height, CV_8UC3);
-
+    Mat image(frame->width, frame->height, CV_8UC2, frame->data);
+    cout << "Mat type: " << image.type() << endl;
+//    for (int i = 0; i < 9; i++){
+//        cout << "0," << to_string(i) << " :" << image.at<double>(0,i) << endl;
+//    }
     cout << "iRows: " << image.rows << " iCols: " << image.cols << endl;
-    //image = Mat::opera
+
+    cvtColor(image,RedGreenBlue,COLOR_YUV2RGBA_YUY2);
     namedWindow("Test", WINDOW_AUTOSIZE);
     printf("create win\n");
-    imshow("Test",image);
+    imshow("Test",RedGreenBlue);
     printf("img shown\n");
     waitKey(1);
     printf("waitkeyed\n");
     image.release();
+    RedGreenBlue.release();
     printf("img released\n");
 
-
-    /* Use opencv.highgui to display the image:
-     *
-     * cvImg = cvCreateImageHeader(
-     *     cvSize(bgr->width, bgr->height),
-     *     IPL_DEPTH_8U,
-     *     3);
-     *
-     * cvSetData(cvImg, bgr->data, bgr->width * 3);
-     *
-     * cvNamedWindow("Test", CV_WINDOW_AUTOSIZE);
-     * cvShowImage("Test", cvImg);
-     * cvWaitKey(10);
-     *
-     * cvReleaseImageHeader(&cvImg);
-     */
     run_count = run_count + 1;
     uvc_free_frame(bgr);
 }
@@ -113,6 +67,7 @@ void cb(uvc_frame_t *frame, void *ptr) {
 int main() {
     uvc_context_t *ctx;
     uvc_device_t *dev;
+    uvc_device_t **listd;
     uvc_device_handle_t *devh;
     uvc_stream_ctrl_t ctrl;
     uvc_error_t res;
@@ -143,8 +98,11 @@ int main() {
         puts("Device opened");
     }
 
+//    uvc_get_device_list(ctx, &listd); //Figure out how to cycle through the cameras
+
     /* Print out a message containing all the information that libuvc
       * knows about the device */
+
     uvc_print_diag(devh, stderr);
 
     const uvc_format_desc_t *format_desc;
@@ -167,8 +125,8 @@ int main() {
             frame_format = UVC_FRAME_FORMAT_H264;
             break;
         default:
-            printf("Color format YUYV\n");
-            frame_format = UVC_FRAME_FORMAT_YUYV;
+            printf("Color format any\n");
+            frame_format = UVC_FRAME_FORMAT_ANY;
             break;
     }
 
@@ -225,7 +183,7 @@ int main() {
                 uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
             }
 
-            sleep(3); /* stream for 10 seconds */
+            sleep(10); /* stream for 10 seconds */
 
             /* End the stream. Blocks until last callback is serviced */
             uvc_stop_streaming(devh);
