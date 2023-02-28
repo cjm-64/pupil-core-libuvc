@@ -40,16 +40,10 @@ void cb(uvc_frame_t *frame, void *ptr) {
 
 
     cout << "Frame num: " << frame->sequence << endl;
-    //cout << "bRows: " << bgr->width << " bCols: " << bgr->width << endl;
     cout << "fRows: " << frame->width << " fCols: " << frame->width << endl;
     Mat image(frame->width, frame->height, CV_8UC2, frame->data);
-    cout << "Mat type: " << image.type() << endl;
-//    for (int i = 0; i < 9; i++){
-//        cout << "0," << to_string(i) << " :" << image.at<double>(0,i) << endl;
-//    }
     cout << "iRows: " << image.rows << " iCols: " << image.cols << endl;
-
-    cvtColor(image,RedGreenBlue,COLOR_YUV2RGBA_YUY2);
+    cvtColor(image,RedGreenBlue,COLOR_YUV2GRAY_UYVY);
     namedWindow("Test", WINDOW_AUTOSIZE);
     printf("create win\n");
     imshow("Test",RedGreenBlue);
@@ -66,7 +60,7 @@ void cb(uvc_frame_t *frame, void *ptr) {
 
 int main() {
     uvc_context_t *ctx;
-    uvc_device_t *dev;
+    uvc_device_t **dev;
     uvc_device_t **listd;
     uvc_device_handle_t *devh;
     uvc_stream_ctrl_t ctrl;
@@ -79,7 +73,7 @@ int main() {
         return res;
     }
 
-    res = uvc_find_device(ctx, &dev, 0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+    res = uvc_find_devices(ctx, &dev, 0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
 
     if (res < 0) {
         uvc_perror(res, "uvc_find_device"); /* no devices found */
@@ -89,7 +83,7 @@ int main() {
     }
 
     /* Try to open the device: requires exclusive access */
-    res = uvc_open(dev, &devh);
+    res = uvc_open(dev[1], &devh);
 
     if (res < 0) {
         uvc_perror(res, "uvc_open"); /* unable to open device */
@@ -98,18 +92,13 @@ int main() {
         puts("Device opened");
     }
 
-//    uvc_get_device_list(ctx, &listd); //Figure out how to cycle through the cameras
-
-    /* Print out a message containing all the information that libuvc
-      * knows about the device */
-
     uvc_print_diag(devh, stderr);
 
     const uvc_format_desc_t *format_desc;
-    format_desc = uvc_get_format_descs(devh)->next;
+    format_desc = uvc_get_format_descs(devh);
     cout << "fd " << format_desc->frame_descs << endl;
     const uvc_frame_desc_t *frame_desc;
-    frame_desc = format_desc->frame_descs->next->next->next->next->next->next;
+    frame_desc = format_desc->frame_descs->next;
     enum uvc_frame_format frame_format;
     int width = 640;
     int height = 480;
@@ -138,7 +127,7 @@ int main() {
 
     printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
 
-    /* Try to negotiate first stream profile */ /* result stored in ctrl */  /* width, height, fps */
+
     res = uvc_get_stream_ctrl_format_size(devh, &ctrl,frame_format, width, height, fps);
 
     /* Print out the result */
@@ -183,7 +172,7 @@ int main() {
                 uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
             }
 
-            sleep(10); /* stream for 10 seconds */
+            sleep(2); /* stream for 10 seconds */
 
             /* End the stream. Blocks until last callback is serviced */
             uvc_stop_streaming(devh);
@@ -195,7 +184,7 @@ int main() {
         puts("Device closed");
     }
 
-    cout << "# of runs: " << run_count;
+    cout << "# of runs: " << run_count << endl;
     std::cout << "Hello, World!" << std::endl;
     return 0;
 }
