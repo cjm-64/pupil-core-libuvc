@@ -3,6 +3,7 @@
 #include "unistd.h"
 #include "string"
 #include "libuvc/libuvc.h"
+#include <turbojpeg.h>
 
 // Computer Vision
 #include <opencv2/opencv.hpp>
@@ -16,7 +17,7 @@ using namespace std;
 
 int run_count = 0;
 
-Mat RedGreenBlue;
+Mat BlueGreenRed;
 
 void cb(uvc_frame_t *frame, void *ptr) {
     uvc_frame_t *bgr;
@@ -38,20 +39,29 @@ void cb(uvc_frame_t *frame, void *ptr) {
     printf("callback! frame_format = %d, width = %d, height = %d, length = %lu\n",frame->frame_format, frame->width, frame->height, frame->data_bytes);
 
 
-
-    cout << "Frame num: " << frame->sequence << endl;
-    cout << "fRows: " << frame->width << " fCols: " << frame->width << endl;
-    Mat image(frame->width, frame->height, CV_8UC2, frame->data);
-    cout << "iRows: " << image.rows << " iCols: " << image.cols << endl;
-    cvtColor(image,RedGreenBlue,COLOR_YUV2GRAY_UYVY);
+    uvc_error_t res = uvc_yuyv2bgr(frame, bgr);
+//    if(res < 0){
+//        printf("Unable to convert\n");
+//    }
+//    else{
+//        cout << "res: " << res << endl;
+//        cout << "bRows: " << frame->width << " bCols: " << frame->width << endl;
+//    }
+//
+//    cout << "Frame num: " << frame->sequence << endl;
+//    cout << "fRows: " << frame->width << " fCols: " << frame->width << endl;
+    Mat image(bgr->width, bgr->height, CV_8UC3, bgr->data);
+//    cout << "Mat type: " << image.type() << endl;
+//    cout << "iRows: " << image.rows << " iCols: " << image.cols << endl;
+    cvtColor(image,BlueGreenRed,COLOR_BGR2GRAY);
     namedWindow("Test", WINDOW_AUTOSIZE);
     printf("create win\n");
-    imshow("Test",RedGreenBlue);
+    imshow("Test",BlueGreenRed);
     printf("img shown\n");
     waitKey(1);
     printf("waitkeyed\n");
     image.release();
-    RedGreenBlue.release();
+    BlueGreenRed.release();
     printf("img released\n");
 
     run_count = run_count + 1;
@@ -172,7 +182,7 @@ int main() {
                 uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
             }
 
-            sleep(2); /* stream for 10 seconds */
+            sleep(30); /* stream for 10 seconds */
 
             /* End the stream. Blocks until last callback is serviced */
             uvc_stop_streaming(devh);
