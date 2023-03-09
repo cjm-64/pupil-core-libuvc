@@ -1,9 +1,9 @@
 # pupil-core-libuvc
 In progress: Open Pupil Core video stream with c++
 
-Using OpenCV 4.6.0 & libuvc
+Using OpenCV 4.6.0 & the pupil labs version of libuvc
 
 Compile in command line using 
 ```
-g++ main -o -out `pkg-config --cflags --libs opencv` `pkg-config --cflags --libs opencv` 
+g++ main.cpp -o out `pkg-config --cflags --libs opencv4` -luvc 
 ```
