@@ -64,6 +64,7 @@ void cb(uvc_frame_t *frame, void *ptr) {
     BlueGreenRed.release();
     printf("img released\n");
 
+
     run_count = run_count + 1;
     uvc_free_frame(bgr);
 }
