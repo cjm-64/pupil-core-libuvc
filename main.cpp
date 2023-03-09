@@ -93,7 +93,7 @@ int main() {
     }
 
     /* Try to open the device: requires exclusive access */
-    res = uvc_open(dev[1], &devh);
+    res = uvc_open(dev[1], &devh, 0);
 
     if (res < 0) {
         uvc_perror(res, "uvc_open"); /* unable to open device */
@@ -138,7 +138,7 @@ int main() {
     printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
 
 
-    res = uvc_get_stream_ctrl_format_size(devh, &ctrl,frame_format, width, height, fps);
+    res = uvc_get_stream_ctrl_format_size(devh, &ctrl,frame_format, width, height, fps, 0);
 
     /* Print out the result */
     uvc_print_stream_ctrl(&ctrl, stderr);
@@ -150,7 +150,7 @@ int main() {
         /* Start the video stream. The library will call user function cb:
          *   cb(frame, (void *) 12345)
          */
-        res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0);
+        res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0, 0);
 
         if (res < 0) {
             uvc_perror(res, "start_streaming"); /* unable to start stream */
