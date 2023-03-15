@@ -17,56 +17,67 @@ using namespace std;
 
 int run_count = 0;
 
-Mat BlueGreenRed;
+Mat BlueGreenRed, image;
+
+tjhandle _jpegDecompressor = tjInitDecompress();
 
 void cb(uvc_frame_t *frame, void *ptr) {
     uvc_frame_t *bgr;
     uvc_error_t ret;
     enum uvc_frame_format *frame_format = (enum uvc_frame_format *)ptr;
     FILE *fp;
+    int status, j_width, j_height, jpegSubsamp, header_ok;
     static int jpeg_count = 0;
     static const char *H264_FILE = "iOSDevLog.h264";
     static const char *MJPEG_FILE = ".jpeg";
     char filename[16];
 
-    /* We'll convert the image from YUV/JPEG to BGR, so allocate space */
-    bgr = uvc_allocate_frame(frame->width * frame->height * 3);
-    if (!bgr) {
-        printf("unable to allocate bgr frame!\n");
-        return;
+    //Allocate buffers for conversions
+    int frameW = frame->width;
+    int frameH = frame->height;
+    long unsigned int frameBytes = frame->data_bytes;
+
+    printf("callback! frame_format = %d, width = %d, height = %d, length = %lu\n",frame->frame_format, frameW, frameH, frameBytes);
+
+    if (frame->frame_format == 3){
+        // yuyv format
+        cout << "Format: YUYV" << endl;
+        bgr = uvc_allocate_frame(frameW * frameH * 3);
+        if (!bgr) {
+            printf("unable to allocate bgr frame!\n");
+            return;
+        }
+        uvc_error_t res = uvc_yuyv2bgr(frame, bgr);
+        Mat placeholder(bgr->width, bgr->height, CV_8UC3, bgr->data);
+        cvtColor(placeholder,image,COLOR_BGR2GRAY);
+        placeholder.release();
+        uvc_free_frame(bgr);
+    }
+    else if (frame->frame_format == 7){
+        //jpeg format
+        cout << "Format: JPEG" << endl;
+        int colorComponents = 3;
+        unsigned char decompBuffer[frameW*frameH*colorComponents];
+        tjDecompressHeader2(_jpegDecompressor, (unsigned char *)frame->data, frameBytes,  &j_width, &j_height, &jpegSubsamp);
+        tjDecompress2(_jpegDecompressor, (unsigned char *)frame->data, frameBytes, decompBuffer, frameW, 0, frameH, TJPF_RGB, TJFLAG_FASTDCT);
+        Mat placeholder(Size(frameW,frameH), CV_8UC3, decompBuffer);
+        placeholder.copyTo(image);
+        cout << "dRows: " << image.rows << " dCols: " << image.cols << endl;
+        cout << "test " << decompBuffer[0] << endl;
+        placeholder.release();
+    }
+    else {
+        //Not one of the 2 formats, not sure how we got here tbh
     }
 
-    printf("callback! frame_format = %d, width = %d, height = %d, length = %lu\n",frame->frame_format, frame->width, frame->height, frame->data_bytes);
-
-
-    uvc_error_t res = uvc_yuyv2bgr(frame, bgr);
-//    if(res < 0){
-//        printf("Unable to convert\n");
-//    }
-//    else{
-//        cout << "res: " << res << endl;
-//        cout << "bRows: " << frame->width << " bCols: " << frame->width << endl;
-//    }
-//
-//    cout << "Frame num: " << frame->sequence << endl;
-//    cout << "fRows: " << frame->width << " fCols: " << frame->width << endl;
-    Mat image(bgr->width, bgr->height, CV_8UC3, bgr->data);
-//    cout << "Mat type: " << image.type() << endl;
-//    cout << "iRows: " << image.rows << " iCols: " << image.cols << endl;
-    cvtColor(image,BlueGreenRed,COLOR_BGR2GRAY);
     namedWindow("Test", WINDOW_AUTOSIZE);
     printf("create win\n");
-    imshow("Test",BlueGreenRed);
+    imshow("Test",image);
     printf("img shown\n");
     waitKey(1);
     printf("waitkeyed\n");
-    image.release();
-    BlueGreenRed.release();
-    printf("img released\n");
-
 
     run_count = run_count + 1;
-    uvc_free_frame(bgr);
 }
 
 int main() {
@@ -77,11 +88,15 @@ int main() {
     uvc_stream_ctrl_t ctrl;
     uvc_error_t res;
 
+
     res = uvc_init(&ctx, NULL);
 
     if (res < 0) {
         uvc_perror(res, "uvc_init");
         return res;
+    }
+    else{
+        printf("uvc initialized\n");
     }
 
     res = uvc_find_devices(ctx, &dev, 0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
@@ -94,7 +109,7 @@ int main() {
     }
 
     /* Try to open the device: requires exclusive access */
-    res = uvc_open(dev[1], &devh, 0);
+    res = uvc_open(dev[1], &devh, 1);
 
     if (res < 0) {
         uvc_perror(res, "uvc_open"); /* unable to open device */
@@ -106,7 +121,7 @@ int main() {
     uvc_print_diag(devh, stderr);
 
     const uvc_format_desc_t *format_desc;
-    format_desc = uvc_get_format_descs(devh);
+    format_desc = uvc_get_format_descs(devh)->next;
     cout << "fd " << format_desc->frame_descs << endl;
     const uvc_frame_desc_t *frame_desc;
     frame_desc = format_desc->frame_descs->next;
@@ -139,7 +154,7 @@ int main() {
     printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
 
 
-    res = uvc_get_stream_ctrl_format_size(devh, &ctrl,frame_format, width, height, fps, 0);
+    res = uvc_get_stream_ctrl_format_size(devh, &ctrl,frame_format, width, height, fps, 1);
 
     /* Print out the result */
     uvc_print_stream_ctrl(&ctrl, stderr);
@@ -151,7 +166,7 @@ int main() {
         /* Start the video stream. The library will call user function cb:
          *   cb(frame, (void *) 12345)
          */
-        res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0, 0);
+        res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0, 1);
 
         if (res < 0) {
             uvc_perror(res, "start_streaming"); /* unable to start stream */
@@ -183,7 +198,7 @@ int main() {
                 uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
             }
 
-            sleep(30); /* stream for 10 seconds */
+            sleep(5); /* stream for 10 seconds */
 
             /* End the stream. Blocks until last callback is serviced */
             uvc_stop_streaming(devh);
@@ -193,6 +208,7 @@ int main() {
         /* Release our handle on the device */
         uvc_close(devh);
         puts("Device closed");
+        tjDestroy(_jpegDecompressor);
     }
 
     cout << "# of runs: " << run_count << endl;
