@@ -90,6 +90,7 @@ int main() {
     uvc_device_t **listd;
     uvc_device_handle_t *devh;
     uvc_stream_ctrl_t ctrl;
+    uvc_stream_handle *strmh;
     uvc_error_t res;
 
 
