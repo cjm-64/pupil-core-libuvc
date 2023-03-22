@@ -125,7 +125,7 @@ int main() {
     uvc_print_diag(devh, stderr);
 
     const uvc_format_desc_t *format_desc;
-    format_desc = uvc_get_format_descs(devh)->next;
+    format_desc = uvc_get_format_descs(devh);
     cout << "fd " << format_desc->frame_descs << endl;
     const uvc_frame_desc_t *frame_desc;
     frame_desc = format_desc->frame_descs->next;
@@ -200,6 +200,18 @@ int main() {
             }
             else {
                 uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
+            }
+
+
+            int16_t *brightness;
+            printf("Brightness created\n");
+            res = uvc_get_brightness(devh, brightness, uvc_req_code(0x83));
+            printf("Brightness taken\n");
+            if (res < 0){
+                printf("Could not get brightness\n");
+            }
+            else{
+                cout << "Brightness: " << brightness << endl;
             }
 
             sleep(10); /* stream for 10 seconds */
