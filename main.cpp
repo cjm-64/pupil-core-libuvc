@@ -113,7 +113,7 @@ int main() {
     }
 
     /* Try to open the device: requires exclusive access */
-    res = uvc_open(dev[1], &devh, 1);
+    res = uvc_open(dev[0], &devh, 1);
 
     if (res < 0) {
         uvc_perror(res, "uvc_open"); /* unable to open device */
@@ -122,13 +122,12 @@ int main() {
         puts("Device opened");
     }
 
-    uvc_print_diag(devh, stderr);
+    //uvc_print_diag(devh, stderr);
 
     const uvc_format_desc_t *format_desc;
     format_desc = uvc_get_format_descs(devh);
-    cout << "fd " << format_desc->frame_descs << endl;
     const uvc_frame_desc_t *frame_desc;
-    frame_desc = format_desc->frame_descs->next;
+    frame_desc = format_desc->frame_descs;
     enum uvc_frame_format frame_format;
     int width = 640;
     int height = 480;
@@ -162,6 +161,7 @@ int main() {
 
     /* Print out the result */
     uvc_print_stream_ctrl(&ctrl, stderr);
+
 
     if (res < 0) {
         uvc_perror(res, "get_mode"); /* device doesn't provide a matching stream */
@@ -202,19 +202,22 @@ int main() {
                 uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
             }
 
-
             int16_t *brightness;
             printf("Brightness created\n");
-            res = uvc_get_brightness(devh, brightness, uvc_req_code(0x83));
-            printf("Brightness taken\n");
+            res = uvc_get_brightness(devh, brightness, uvc_req_code(0x00));
+            printf("Attempt get Brightness\n");
             if (res < 0){
-                printf("Could not get brightness\n");
+                cout << "res: " << res << endl;
+                cout << "error" << endl;
+                uvc_strerror(res);
             }
             else{
-                cout << "Brightness: " << brightness << endl;
+                cout << "res: " << res << endl;
+                cout << "Brightness is: " << brightness << endl;
             }
 
-            sleep(10); /* stream for 10 seconds */
+
+            sleep(3); /* stream for 10 seconds */
 
             /* End the stream. Blocks until last callback is serviced */
             uvc_stop_streaming(devh);
