@@ -26,7 +26,7 @@ void cb(uvc_frame_t *frame, void *ptr) {
     uvc_error_t ret;
     enum uvc_frame_format *frame_format = (enum uvc_frame_format *)ptr;
     FILE *fp;
-    int status, j_width, j_height, jpegSubsamp, header_ok;
+
     static int jpeg_count = 0;
     static const char *H264_FILE = "iOSDevLog.h264";
     static const char *MJPEG_FILE = ".jpeg";
@@ -48,14 +48,18 @@ void cb(uvc_frame_t *frame, void *ptr) {
             return;
         }
         uvc_error_t res = uvc_yuyv2bgr(frame, bgr);
-        Mat placeholder(bgr->width, bgr->height, CV_8UC3, bgr->data);
-        cvtColor(placeholder,image,COLOR_BGR2GRAY);
+        if (res < 0){
+            printf("Unable to copy frame to bgr!\n");
+        }
+        Mat placeholder(bgr->height, bgr->width, CV_8UC3, bgr->data);
+        placeholder.copyTo(image);
         placeholder.release();
         uvc_free_frame(bgr);
     }
     else if (frame->frame_format == 7){
         //jpeg format
         cout << "Format: JPEG" << endl;
+        int status, j_width, j_height, jpegSubsamp, header_ok;
         int colorComponents = 3;
         unsigned char decompBuffer[frameW*frameH*colorComponents];
         tjDecompressHeader2(_jpegDecompressor, (unsigned char *)frame->data, frameBytes,  &j_width, &j_height, &jpegSubsamp);
@@ -198,7 +202,7 @@ int main() {
                 uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
             }
 
-            sleep(5); /* stream for 10 seconds */
+            sleep(10); /* stream for 10 seconds */
 
             /* End the stream. Blocks until last callback is serviced */
             uvc_stop_streaming(devh);
