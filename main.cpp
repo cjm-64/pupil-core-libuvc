@@ -163,7 +163,6 @@ int main() {
     /* Print out the result */
     uvc_print_stream_ctrl(&ctrl, stderr);
 
-
     if (res < 0) {
         uvc_perror(res, "get_mode"); /* device doesn't provide a matching stream */
     }
