@@ -4,6 +4,8 @@
 #include "string"
 #include "libuvc/libuvc.h"
 #include <turbojpeg.h>
+#include <math.h>
+#include <chrono>
 
 // Computer Vision
 #include <opencv2/opencv.hpp>
@@ -15,22 +17,24 @@
 using namespace cv;
 using namespace std;
 
+Mat image;
+
 int run_count = 0;
-
-Mat BlueGreenRed, image;
-
 tjhandle _jpegDecompressor = tjInitDecompress();
 
-void cb(uvc_frame_t *frame, void *ptr) {
+void callback(uvc_stream_handle_t *hand, int timeout){
+    uvc_frame_t *frame;
     uvc_frame_t *bgr;
-    uvc_error_t ret;
-    enum uvc_frame_format *frame_format = (enum uvc_frame_format *)ptr;
-    FILE *fp;
+    uvc_error_t res;
 
-    static int jpeg_count = 0;
-    static const char *H264_FILE = "iOSDevLog.h264";
-    static const char *MJPEG_FILE = ".jpeg";
-    char filename[16];
+
+    res = uvc_stream_get_frame(hand, &frame, 0);
+    if(res < 0){
+        uvc_perror(res, "Failed to get frame");
+    }
+    else{
+        printf("got frame");
+    }
 
     //Allocate buffers for conversions
     int frameW = frame->width;
@@ -74,23 +78,24 @@ void cb(uvc_frame_t *frame, void *ptr) {
         //Not one of the 2 formats, not sure how we got here tbh
     }
 
+    Mat adjusted;
+    convertScaleAbs(image, adjusted, 1, 100);
     namedWindow("Test", WINDOW_AUTOSIZE);
     printf("create win\n");
     imshow("Test",image);
     printf("img shown\n");
     waitKey(1);
     printf("waitkeyed\n");
+    adjusted.release();
 
-    run_count = run_count + 1;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     uvc_context_t *ctx;
     uvc_device_t **dev;
-    uvc_device_t **listd;
     uvc_device_handle_t *devh;
     uvc_stream_ctrl_t ctrl;
-    uvc_stream_handle *strmh;
+    uvc_stream_handle_t *strmh;
     uvc_error_t res;
 
 
@@ -114,7 +119,7 @@ int main() {
     }
 
     /* Try to open the device: requires exclusive access */
-    res = uvc_open(dev[0], &devh, 1);
+    res = uvc_open(dev[1], &devh, 1);
 
     if (res < 0) {
         uvc_perror(res, "uvc_open"); /* unable to open device */
@@ -123,12 +128,12 @@ int main() {
         puts("Device opened");
     }
 
-    //uvc_print_diag(devh, stderr);
+    uvc_print_diag(devh, stderr);
 
     const uvc_format_desc_t *format_desc;
     format_desc = uvc_get_format_descs(devh);
     const uvc_frame_desc_t *frame_desc;
-    frame_desc = format_desc->frame_descs;
+    frame_desc = format_desc->frame_descs->next;
     enum uvc_frame_format frame_format;
     int width = 640;
     int height = 480;
@@ -160,77 +165,54 @@ int main() {
 
     res = uvc_get_stream_ctrl_format_size(devh, &ctrl,frame_format, width, height, fps, 1);
 
+
     /* Print out the result */
     uvc_print_stream_ctrl(&ctrl, stderr);
 
-    if (res < 0) {
-        uvc_perror(res, "get_mode"); /* device doesn't provide a matching stream */
+    if (res < 0){
+        uvc_perror(res, "start_streaming");
     }
-    else {
-        /* Start the video stream. The library will call user function cb:
-         *   cb(frame, (void *) 12345)
-         */
-        res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0, 1);
-
-        if (res < 0) {
-            uvc_perror(res, "start_streaming"); /* unable to start stream */
-        }
-        else {
-            puts("Streaming...");
-
-            /* enable auto exposure - see uvc_set_ae_mode documentation */
-            puts("Enabling auto exposure ...");
-            const uint8_t UVC_AUTO_EXPOSURE_MODE_AUTO = 2;
-            res = uvc_set_ae_mode(devh, UVC_AUTO_EXPOSURE_MODE_AUTO);
-            if (res == UVC_SUCCESS) {
-                puts(" ... enabled auto exposure");
-            }
-            else if (res == UVC_ERROR_PIPE) {
-                /* this error indicates that the camera does not support the full AE mode;
-                 * try again, using aperture priority mode (fixed aperture, variable exposure time) */
-                puts(" ... full AE not supported, trying aperture priority mode");
-                const uint8_t UVC_AUTO_EXPOSURE_MODE_APERTURE_PRIORITY = 8;
-                res = uvc_set_ae_mode(devh, UVC_AUTO_EXPOSURE_MODE_APERTURE_PRIORITY);
-                if (res < 0) {
-                    uvc_perror(res, " ... uvc_set_ae_mode failed to enable aperture priority mode");
-                }
-                else {
-                    puts(" ... enabled aperture priority auto exposure mode");
-                }
-            }
-            else {
-                uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
-            }
-
-            int16_t *brightness;
-            printf("Brightness created\n");
-            res = uvc_get_brightness(devh, brightness, uvc_req_code(0x00));
-            printf("Attempt get Brightness\n");
-            if (res < 0){
-                cout << "res: " << res << endl;
-                cout << "error" << endl;
-                uvc_strerror(res);
-            }
-            else{
-                cout << "res: " << res << endl;
-                cout << "Brightness is: " << brightness << endl;
-            }
-
-
-            sleep(3); /* stream for 10 seconds */
-
-            /* End the stream. Blocks until last callback is serviced */
-            uvc_stop_streaming(devh);
-            puts("Done streaming.");
-        }
-
-        /* Release our handle on the device */
-        uvc_close(devh);
-        puts("Device closed");
-        tjDestroy(_jpegDecompressor);
+    else{
+        res = uvc_stream_open_ctrl(devh, &strmh, &ctrl, 0);
     }
 
-    cout << "# of runs: " << run_count << endl;
+    if (res < 0){
+        uvc_perror(res, "start_streaming");
+    }
+    else{
+        res = uvc_stream_start(strmh, nullptr, nullptr,2.0,0);
+    }
+
+//    int16_t brightness = 100;
+//    printf("Brightness created\n");
+//    res = uvc_set_brightness(devh, brightness);
+//    printf("Attempt get Brightness\n");
+//    if (res < 0){
+//        cout << "res: " << res << endl;
+//        cout << "error" << endl;
+//        uvc_strerror(res);
+//    }
+//    else{
+//        cout << "res: " << res << endl;
+//        cout << "Brightness is: " << brightness << endl;
+//    }
+
+    int timeout = 3.3*pow(10,4);
+
+    auto start = chrono::system_clock::now();
+    auto end = chrono::system_clock::now();
+    chrono::duration<double> elapsed_seconds = end-start;
+    while (elapsed_seconds.count() < atoi(argv[1])){
+        callback(strmh, timeout);
+        end = chrono::system_clock::now();
+        elapsed_seconds = end-start;
+        run_count = run_count + 1;
+    }
+    cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
+    cout << "Total runs: " << run_count << endl;
+
+
+
     std::cout << "Hello, World!" << std::endl;
     return 0;
 }
