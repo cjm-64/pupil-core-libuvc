@@ -118,6 +118,8 @@ int main(int argc, char* argv[]) {
         puts("Device found");
     }
 
+    cout << "Devices: " << reinterpret_cast<const char *>(&dev) << endl;
+
     /* Try to open the device: requires exclusive access */
     res = uvc_open(dev[1], &devh, 1);
 
@@ -139,6 +141,8 @@ int main(int argc, char* argv[]) {
     int height = 480;
     int fps = 30;
 
+    cout << "Interval: " << frame_desc->intervals[5]  << endl;
+
     switch (format_desc->bDescriptorSubtype) {
         case UVC_VS_FORMAT_MJPEG:
             printf("Color format MJPEG\n");
@@ -157,7 +161,7 @@ int main(int argc, char* argv[]) {
     if (frame_desc) {
         width = frame_desc->wWidth;
         height = frame_desc->wHeight;
-        fps = 10000000 / frame_desc->dwDefaultFrameInterval;
+        fps = 10000000 / frame_desc->intervals[5];
     }
 
     printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
