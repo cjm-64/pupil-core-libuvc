@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
     if (frame_desc) {
         width = frame_desc->wWidth;
         height = frame_desc->wHeight;
-        fps = 10000000 / frame_desc->intervals[5];
+        fps = 10000000 / frame_desc->intervals[2];
     }
 
     printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
@@ -187,20 +187,6 @@ int main(int argc, char* argv[]) {
         res = uvc_stream_start(strmh, nullptr, nullptr,2.0,0);
     }
 
-//    int16_t brightness = 100;
-//    printf("Brightness created\n");
-//    res = uvc_set_brightness(devh, brightness);
-//    printf("Attempt get Brightness\n");
-//    if (res < 0){
-//        cout << "res: " << res << endl;
-//        cout << "error" << endl;
-//        uvc_strerror(res);
-//    }
-//    else{
-//        cout << "res: " << res << endl;
-//        cout << "Brightness is: " << brightness << endl;
-//    }
-
     int timeout = 3.3*pow(10,4);
 
     auto start = chrono::system_clock::now();
@@ -214,8 +200,6 @@ int main(int argc, char* argv[]) {
     }
     cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
     cout << "Total runs: " << run_count << endl;
-
-
 
     std::cout << "Hello, World!" << std::endl;
     return 0;
