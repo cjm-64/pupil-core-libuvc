@@ -173,8 +173,8 @@ int main(int argc, char* argv[]) {
         puts("Devices found");
     }
 
-    initCam(right_context, devicelist[1], right_strmh);
-    initCam(left_context, devicelist[2], left_strmh);
+    right_strmh = initCam(right_context, devicelist[1], right_strmh);
+    left_strmh = initCam(left_context, devicelist[2], left_strmh);
 
 
     res = uvc_stream_start(righteyestrmh, nullptr, nullptr,2.0,0);
