@@ -90,23 +90,78 @@ void callback(uvc_stream_handle_t *hand, int timeout){
 
 }
 
+void initCam(uvc_context_t *context, uvc_device_t *device, uvc_stream_handle_t *stream_handle){
+    uvc_device_handle_t *device_handle;
+    uvc_stream_ctrl_t control;
+    uvc_error_t result;
+
+    result = uvc_open(device, &device_handle);
+    if (result < 0) {
+        uvc_perror(res, "uvc_open"); /* unable to open device */
+    }
+    else{
+        printf("Device Opened\n");
+	uvc_print_diag(device_handle, stderr);
+    }
+    
+
+    int width, height, fps;
+
+    const uvc_format_desc_t *format_desc = uvc_get_format_descs(device_handle);
+    const uvc_frame_desc_t *frame_desc = right_format_desc->frame_descs->next;
+    enum uvc_frame_format frame_format = UVC_FRAME_FORMAT_ANY;
+    if (frame_desc) {
+        width = right_frame_desc->wWidth;
+        height = right_frame_desc->wHeight;
+        fps = 10000000 / right_frame_desc->intervals[2];
+    }
+    printf("\nRight eye format: (%4s) %dx%d %dfps\n", right_format_desc->fourccFormat, width, height, fps);
+    
+    result = uvc_get_stream_ctrl_format_size(device_handle, &control, frame_format, width, height, fps, 0);
+    if (result < 0){
+        uvc_perror(res, "start_streaming");
+    }
+    else{
+        printf("\n\nStream controls\n");
+        uvc_print_stream_ctrl(&device_handle, stderr);
+    }
+
+    result = uvc_stream_open_ctrl(device_handle, &stream_handle, &control, 0);
+    if (result < 0){
+        uvc_perror(res, "start_streaming");
+    }
+    else{
+	print("UVC Stream open ctrl success\n\n");
+    }
+
+    return stream_handle;
+}
+
 int main(int argc, char* argv[]) {
-    uvc_context_t *ctx;
-    uvc_device_t **dev;
-    uvc_device_handle_t *devh;
-    uvc_stream_ctrl_t ctrl;
-    uvc_stream_handle_t *strmh;
+    uvc_context_t *right_context, *left_context;
+    uvc_device_t **device_list;
+    uvc_stream_handle_t *right_strmh, *left_strmh;
     uvc_error_t res;
 
 
-    res = uvc_init(&ctx, NULL);
+    res = uvc_init(&right_context, NULL);
+    res = uvc_init(&left_context, NULL);
 
     if (res < 0) {
         uvc_perror(res, "uvc_init");
         return res;
     }
     else{
+	printf("right ctx initialized\n");
+	res = uvc_init(&left_context, NULL);
         printf("uvc initialized\n");
+	if (res < 0) {
+            uvc_perror(res, "uvc_init");
+            return res;
+        }
+        else{
+	    printf("left ctx initialized\n");
+        }
     }
 
     res = uvc_find_devices(ctx, &dev, 0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
@@ -115,92 +170,44 @@ int main(int argc, char* argv[]) {
         uvc_perror(res, "uvc_find_device"); /* no devices found */
     }
     else {
-        puts("Device found");
+        puts("Devices found");
     }
 
-    cout << "Devices: " << reinterpret_cast<const char *>(&dev) << endl;
-
-    /* Try to open the device: requires exclusive access */
-    res = uvc_open(dev[1], &devh, 1);
-
-    if (res < 0) {
-        uvc_perror(res, "uvc_open"); /* unable to open device */
-    }
-    else {
-        puts("Device opened");
-    }
-
-    uvc_print_diag(devh, stderr);
-
-    const uvc_format_desc_t *format_desc;
-    format_desc = uvc_get_format_descs(devh);
-    const uvc_frame_desc_t *frame_desc;
-    frame_desc = format_desc->frame_descs->next;
-    enum uvc_frame_format frame_format;
-    int width = 640;
-    int height = 480;
-    int fps = 30;
-
-    cout << "Interval: " << frame_desc->intervals[5]  << endl;
-
-    switch (format_desc->bDescriptorSubtype) {
-        case UVC_VS_FORMAT_MJPEG:
-            printf("Color format MJPEG\n");
-            frame_format = UVC_COLOR_FORMAT_MJPEG;
-            break;
-        case UVC_VS_FORMAT_FRAME_BASED:
-            printf("Color format H264\n");
-            frame_format = UVC_FRAME_FORMAT_H264;
-            break;
-        default:
-            printf("Color format any\n");
-            frame_format = UVC_FRAME_FORMAT_ANY;
-            break;
-    }
-
-    if (frame_desc) {
-        width = frame_desc->wWidth;
-        height = frame_desc->wHeight;
-        fps = 10000000 / frame_desc->intervals[2];
-    }
-
-    printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
+    initCam(right_context, devicelist[1], right_strmh);
+    initCam(left_context, devicelist[2], left_strmh);
 
 
-    res = uvc_get_stream_ctrl_format_size(devh, &ctrl,frame_format, width, height, fps, 1);
-
-
-    /* Print out the result */
-    uvc_print_stream_ctrl(&ctrl, stderr);
-
+    res = uvc_stream_start(righteyestrmh, nullptr, nullptr,2.0,0);
     if (res < 0){
         uvc_perror(res, "start_streaming");
     }
     else{
-        res = uvc_stream_open_ctrl(devh, &strmh, &ctrl, 0);
+        printf("UVC stream start success right\n");
+        res = uvc_stream_start(lefteyestrmh, nullptr, nullptr,2.0,0);
+        if (res < 0){
+            printf("UVC stream start fail left\n");
+            uvc_perror(res, "start_streaming");
+        }
+        else{
+            printf("UVC stream start success left\n\n\n");
+        }
     }
 
-    if (res < 0){
-        uvc_perror(res, "start_streaming");
+    if (atoi(argv[1]) < 1){
+        printf("No run cam\n");
     }
     else{
-        res = uvc_stream_start(strmh, nullptr, nullptr,2.0,0);
+        auto start = chrono::system_clock::now();
+        auto curr_time = chrono::system_clock::now();
+        chrono::duration<double> elapsed_seconds = curr_time-start;
+        while (elapsed_seconds.count() < atoi(argv[1])){
+            callback(righteyestrmh, "Right Eye");
+            callback(lefteyestrmh, "Left Eye");
+            curr_time = chrono::system_clock::now();
+            elapsed_seconds = curr_time-start;
+            run_count = run_count + 1;
+        }
+        cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
+        cout << "Total runs: " << run_count << endl;
     }
-
-    int timeout = 3.3*pow(10,4);
-
-    auto start = chrono::system_clock::now();
-    auto end = chrono::system_clock::now();
-    chrono::duration<double> elapsed_seconds = end-start;
-    while (elapsed_seconds.count() < atoi(argv[1])){
-        callback(strmh, timeout);
-        end = chrono::system_clock::now();
-        elapsed_seconds = end-start;
-        run_count = run_count + 1;
-    }
-    cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
-    cout << "Total runs: " << run_count << endl;
-
-    std::cout << "Hello, World!" << std::endl;
-    return 0;
 }
