@@ -22,7 +22,7 @@ Mat image;
 int run_count = 0;
 tjhandle _jpegDecompressor = tjInitDecompress();
 
-void callback(uvc_stream_handle_t *hand, int timeout){
+void callback(uvc_stream_handle_t *hand, string winname){
     uvc_frame_t *frame;
     uvc_frame_t *bgr;
     uvc_error_t res;
@@ -80,9 +80,9 @@ void callback(uvc_stream_handle_t *hand, int timeout){
 
     Mat adjusted;
     convertScaleAbs(image, adjusted, 1, 100);
-    namedWindow("Test", WINDOW_AUTOSIZE);
+    namedWindow(winname, WINDOW_AUTOSIZE);
     printf("create win\n");
-    imshow("Test",image);
+    imshow(winname,image);
     printf("img shown\n");
     waitKey(1);
     printf("waitkeyed\n");
@@ -90,14 +90,14 @@ void callback(uvc_stream_handle_t *hand, int timeout){
 
 }
 
-void initCam(uvc_context_t *context, uvc_device_t *device, uvc_stream_handle_t *stream_handle){
+uvc_stream_handle_t * initCam(uvc_context_t *context, uvc_device_t *device, uvc_stream_handle_t *stream_handle){
     uvc_device_handle_t *device_handle;
     uvc_stream_ctrl_t control;
     uvc_error_t result;
 
-    result = uvc_open(device, &device_handle);
+    result = uvc_open(device, &device_handle, 0);
     if (result < 0) {
-        uvc_perror(res, "uvc_open"); /* unable to open device */
+        uvc_perror(result, "uvc_open"); /* unable to open device */
     }
     else{
         printf("Device Opened\n");
@@ -108,30 +108,30 @@ void initCam(uvc_context_t *context, uvc_device_t *device, uvc_stream_handle_t *
     int width, height, fps;
 
     const uvc_format_desc_t *format_desc = uvc_get_format_descs(device_handle);
-    const uvc_frame_desc_t *frame_desc = right_format_desc->frame_descs->next;
+    const uvc_frame_desc_t *frame_desc = format_desc->frame_descs->next;
     enum uvc_frame_format frame_format = UVC_FRAME_FORMAT_ANY;
     if (frame_desc) {
-        width = right_frame_desc->wWidth;
-        height = right_frame_desc->wHeight;
-        fps = 10000000 / right_frame_desc->intervals[2];
+        width = frame_desc->wWidth;
+        height = frame_desc->wHeight;
+        fps = 10000000 / frame_desc->intervals[2];
     }
-    printf("\nRight eye format: (%4s) %dx%d %dfps\n", right_format_desc->fourccFormat, width, height, fps);
+    printf("\nRight eye format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
     
     result = uvc_get_stream_ctrl_format_size(device_handle, &control, frame_format, width, height, fps, 0);
     if (result < 0){
-        uvc_perror(res, "start_streaming");
+        uvc_perror(result, "start_streaming");
     }
     else{
         printf("\n\nStream controls\n");
-        uvc_print_stream_ctrl(&device_handle, stderr);
+        uvc_print_stream_ctrl(&control, stderr);
     }
 
     result = uvc_stream_open_ctrl(device_handle, &stream_handle, &control, 0);
     if (result < 0){
-        uvc_perror(res, "start_streaming");
+        uvc_perror(result, "start_streaming");
     }
     else{
-	print("UVC Stream open ctrl success\n\n");
+	    printf("UVC Stream open ctrl success\n\n");
     }
 
     return stream_handle;
@@ -164,7 +164,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    res = uvc_find_devices(ctx, &dev, 0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+    res = uvc_find_devices(right_context, &device_list, 0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
 
     if (res < 0) {
         uvc_perror(res, "uvc_find_device"); /* no devices found */
@@ -173,17 +173,17 @@ int main(int argc, char* argv[]) {
         puts("Devices found");
     }
 
-    right_strmh = initCam(right_context, devicelist[1], right_strmh);
-    left_strmh = initCam(left_context, devicelist[2], left_strmh);
+    right_strmh = initCam(right_context, device_list[1], right_strmh);
+    left_strmh = initCam(left_context, device_list[2], left_strmh);
 
 
-    res = uvc_stream_start(righteyestrmh, nullptr, nullptr,2.0,0);
+    res = uvc_stream_start(right_strmh, nullptr, nullptr,2.0,0);
     if (res < 0){
         uvc_perror(res, "start_streaming");
     }
     else{
         printf("UVC stream start success right\n");
-        res = uvc_stream_start(lefteyestrmh, nullptr, nullptr,2.0,0);
+        res = uvc_stream_start(left_strmh, nullptr, nullptr,2.0,0);
         if (res < 0){
             printf("UVC stream start fail left\n");
             uvc_perror(res, "start_streaming");
@@ -200,9 +200,9 @@ int main(int argc, char* argv[]) {
         auto start = chrono::system_clock::now();
         auto curr_time = chrono::system_clock::now();
         chrono::duration<double> elapsed_seconds = curr_time-start;
-        while (elapsed_seconds.count() < atoi(argv[1])){
-            callback(righteyestrmh, "Right Eye");
-            callback(lefteyestrmh, "Left Eye");
+        while (elapsed_seconds.count() < stoi(argv[1])){
+            callback(right_strmh, "Right Eye");
+            callback(left_strmh, "Left Eye");
             curr_time = chrono::system_clock::now();
             elapsed_seconds = curr_time-start;
             run_count = run_count + 1;
