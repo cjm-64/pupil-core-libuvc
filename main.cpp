@@ -90,18 +90,19 @@ void callback(uvc_stream_handle_t *hand, string winname){
 
 }
 
-uvc_stream_handle_t * initCam(uvc_context_t *context, uvc_device_t *device, uvc_stream_handle_t *stream_handle){
+uvc_stream_handle_t * initCam(uvc_device_t *device, uvc_stream_handle_t *stream_handle, string eye){
     uvc_device_handle_t *device_handle;
     uvc_stream_ctrl_t control;
     uvc_error_t result;
 
-    result = uvc_open(device, &device_handle, 0);
+    cout << "dev: " << device << endl;
+    result = uvc_open(device, &device_handle, 1);
     if (result < 0) {
         uvc_perror(result, "uvc_open"); /* unable to open device */
     }
     else{
         printf("Device Opened\n");
-	uvc_print_diag(device_handle, stderr);
+//	    uvc_print_diag(device_handle, stderr);
     }
     
 
@@ -115,9 +116,10 @@ uvc_stream_handle_t * initCam(uvc_context_t *context, uvc_device_t *device, uvc_
         height = frame_desc->wHeight;
         fps = 10000000 / frame_desc->intervals[2];
     }
-    printf("\nRight eye format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
+    cout << "\n" << eye << ": " << endl;
+    printf("(%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
     
-    result = uvc_get_stream_ctrl_format_size(device_handle, &control, frame_format, width, height, fps, 0);
+    result = uvc_get_stream_ctrl_format_size(device_handle, &control, frame_format, width, height, fps, 1);
     if (result < 0){
         uvc_perror(result, "start_streaming");
     }
@@ -126,12 +128,20 @@ uvc_stream_handle_t * initCam(uvc_context_t *context, uvc_device_t *device, uvc_
         uvc_print_stream_ctrl(&control, stderr);
     }
 
-    result = uvc_stream_open_ctrl(device_handle, &stream_handle, &control, 0);
+    result = uvc_stream_open_ctrl(device_handle, &stream_handle, &control, 1);
     if (result < 0){
         uvc_perror(result, "start_streaming");
     }
     else{
 	    printf("UVC Stream open ctrl success\n\n");
+    }
+
+    result = uvc_stream_start(stream_handle, nullptr, nullptr,2.0,1);
+    if (result < 0){
+        uvc_perror(result, "start_streaming");
+    }
+    else{
+        printf("UVC stream start success \n");
     }
 
     return stream_handle;
@@ -145,22 +155,20 @@ int main(int argc, char* argv[]) {
 
 
     res = uvc_init(&right_context, NULL);
-    res = uvc_init(&left_context, NULL);
 
     if (res < 0) {
         uvc_perror(res, "uvc_init");
         return res;
     }
     else{
-	printf("right ctx initialized\n");
-	res = uvc_init(&left_context, NULL);
-        printf("uvc initialized\n");
-	if (res < 0) {
-            uvc_perror(res, "uvc_init");
-            return res;
-        }
-        else{
-	    printf("left ctx initialized\n");
+        printf("right ctx initialized\n");
+        res = uvc_init(&left_context, NULL);
+        if (res < 0) {
+                uvc_perror(res, "uvc_init");
+                return res;
+            }
+            else{
+            printf("left ctx initialized\n");
         }
     }
 
@@ -173,25 +181,8 @@ int main(int argc, char* argv[]) {
         puts("Devices found");
     }
 
-    right_strmh = initCam(right_context, device_list[1], right_strmh);
-    left_strmh = initCam(left_context, device_list[2], left_strmh);
-
-
-    res = uvc_stream_start(right_strmh, nullptr, nullptr,2.0,0);
-    if (res < 0){
-        uvc_perror(res, "start_streaming");
-    }
-    else{
-        printf("UVC stream start success right\n");
-        res = uvc_stream_start(left_strmh, nullptr, nullptr,2.0,0);
-        if (res < 0){
-            printf("UVC stream start fail left\n");
-            uvc_perror(res, "start_streaming");
-        }
-        else{
-            printf("UVC stream start success left\n\n\n");
-        }
-    }
+    right_strmh = initCam(device_list[0], right_strmh, "Right");
+    left_strmh = initCam(device_list[2], left_strmh, "Left");
 
     if (atoi(argv[1]) < 1){
         printf("No run cam\n");
