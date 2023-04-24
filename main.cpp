@@ -22,13 +22,70 @@ Mat image;
 int run_count = 0;
 tjhandle _jpegDecompressor = tjInitDecompress();
 
+int getCamInfo (int i) {
+    uvc_context_t *ctx;
+    uvc_device_t **device_list;
+    uvc_device_handle_t *devh;
+    uvc_stream_ctrl_t ctrl;
+    uvc_error_t res;
+
+    printf("\n\n\n");
+    res = uvc_init(&ctx, NULL);
+    if (res < 0) {
+        uvc_perror(res, "uvc_init");
+    } else {
+        printf("ctx initialized\n");
+    }
+
+    res = uvc_find_devices(ctx, &device_list, 0, 0, NULL);
+    if (res < 0) {
+        uvc_perror(res, "uvc_find_device"); /* no devices found */
+    } else {
+        puts("Devices found");
+    }
+
+    res = uvc_open(device_list[i], &devh, 1);
+    if (res < 0) {
+        uvc_perror(res, "uvc_open"); /* unable to open device */
+        cout << i << " failed to open" << endl;
+    } else {
+        cout << i << " opened" << endl;
+//        uvc_print_diag(devh, stderr);
+    }
+    int width, height, fps;
+
+    const uvc_format_desc_t *format_desc = uvc_get_format_descs(devh);
+    const uvc_frame_desc_t *frame_desc = format_desc->frame_descs->next;
+    enum uvc_frame_format frame_format = UVC_FRAME_FORMAT_ANY;
+    if (frame_desc) {
+        width = frame_desc->wWidth;
+        height = frame_desc->wHeight;
+        fps = 10000000 / frame_desc->intervals[2];
+    }
+    cout << i << ": ";
+    printf("(%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
+
+    bool retval;
+    cout << "fps: " << fps << endl;
+    if (fps == 120) {
+        retval = true;
+    } else {
+        retval = false;
+    }
+
+    uvc_close(devh);
+    uvc_exit(ctx);
+
+    return retval;
+}
+
 void callback(uvc_stream_handle_t *hand, string winname){
     uvc_frame_t *frame;
     uvc_frame_t *bgr;
     uvc_error_t res;
 
 
-    res = uvc_stream_get_frame(hand, &frame, 0);
+    res = uvc_stream_get_frame(hand, &frame, 1*pow(10,6));
     if(res < 0){
         uvc_perror(res, "Failed to get frame");
     }
@@ -95,13 +152,14 @@ uvc_stream_handle_t * initCam(uvc_device_t *device, uvc_stream_handle_t *stream_
     uvc_stream_ctrl_t control;
     uvc_error_t result;
 
-    cout << "dev: " << device << endl;
+    printf("\n\n");
     result = uvc_open(device, &device_handle, 1);
     if (result < 0) {
+        cout << eye << " ";
         uvc_perror(result, "uvc_open"); /* unable to open device */
     }
     else{
-        printf("Device Opened\n");
+        cout << eye << " opened" << endl;
 //	    uvc_print_diag(device_handle, stderr);
     }
     
@@ -116,32 +174,27 @@ uvc_stream_handle_t * initCam(uvc_device_t *device, uvc_stream_handle_t *stream_
         height = frame_desc->wHeight;
         fps = 10000000 / frame_desc->intervals[2];
     }
-    cout << "\n" << eye << ": " << endl;
+    cout << eye << ": ";
     printf("(%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
     
     result = uvc_get_stream_ctrl_format_size(device_handle, &control, frame_format, width, height, fps, 1);
     if (result < 0){
+        cout << eye << " ";
         uvc_perror(result, "start_streaming");
     }
     else{
-        printf("\n\nStream controls\n");
-        uvc_print_stream_ctrl(&control, stderr);
+        cout << eye << " get stream control success" << endl;
+//        printf("\n\nStream controls\n");
+//        uvc_print_stream_ctrl(&control, stderr);
     }
 
     result = uvc_stream_open_ctrl(device_handle, &stream_handle, &control, 1);
     if (result < 0){
+        cout << eye << " ";
         uvc_perror(result, "start_streaming");
     }
     else{
-	    printf("UVC Stream open ctrl success\n\n");
-    }
-
-    result = uvc_stream_start(stream_handle, nullptr, nullptr,2.0,1);
-    if (result < 0){
-        uvc_perror(result, "start_streaming");
-    }
-    else{
-        printf("UVC stream start success \n");
+        cout << eye << " stream open ctrl success" << endl;
     }
 
     return stream_handle;
@@ -153,6 +206,23 @@ int main(int argc, char* argv[]) {
     uvc_stream_handle_t *right_strmh, *left_strmh;
     uvc_error_t res;
 
+    // For some reason the cameras aren't always in the same order when they are plugged in
+    // So this gets the locations of the cameras and puts them in device_iterators
+    int loc = 0;
+    int device_iterators[2] = {0};
+    for (int i = 0; i<3; i++){
+        if (getCamInfo(i) > 0){
+            device_iterators[loc] = i;
+            loc++;
+        }
+        else{
+            printf("World cam; ignoring\n");
+        }
+    }
+    for (int i = 0; i<2; i++){
+        cout << "DI: " << device_iterators[i] << endl;
+    }
+    printf("\n\n\n");
 
     res = uvc_init(&right_context, NULL);
 
@@ -181,13 +251,32 @@ int main(int argc, char* argv[]) {
         puts("Devices found");
     }
 
-    right_strmh = initCam(device_list[0], right_strmh, "Right");
-    left_strmh = initCam(device_list[2], left_strmh, "Left");
+    right_strmh = initCam(device_list[device_iterators[0]], right_strmh, "Right");
+    left_strmh = initCam(device_list[device_iterators[1]], left_strmh, "Left");
+
+    res = uvc_stream_start(right_strmh, nullptr, nullptr,2.0,1);
+    if (res < 0){
+        cout << "Right :";
+        uvc_perror(res, "start_streaming");
+    }
+    else{
+        cout << "Right stream start success" << endl;
+        res = uvc_stream_start(left_strmh, nullptr, nullptr,2.0,1);
+        if (res < 0){
+            cout << "Left :";
+            uvc_perror(res, "start_streaming");
+        }
+        else{
+            cout << "Left stream start success\n" << endl;
+
+        }
+    }
 
     if (atoi(argv[1]) < 1){
         printf("No run cam\n");
     }
     else{
+        cout << "Running for " << argv[1] << " seconds" << endl;
         auto start = chrono::system_clock::now();
         auto curr_time = chrono::system_clock::now();
         chrono::duration<double> elapsed_seconds = curr_time-start;
@@ -201,4 +290,8 @@ int main(int argc, char* argv[]) {
         cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
         cout << "Total runs: " << run_count << endl;
     }
+    printf("Run end \n");
+    uvc_exit(right_context);
+    uvc_exit(left_context);
+    printf("Hello World\n");
 }
