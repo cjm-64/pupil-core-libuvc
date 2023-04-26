@@ -32,6 +32,7 @@ struct CamInfo{
 //    int DevAddr;
 //    int BusNum;
     string uid;
+    int bus_loc;
 };
 
 struct StreamingInfo{
@@ -78,6 +79,7 @@ void getCamInfo(struct CamInfo *ci){
                 ci[dev_struct_count].vID = desc->idVendor;
                 ci[dev_struct_count].pID = desc->idProduct;
                 ci[dev_struct_count].uid = to_string(uvc_get_device_address(dev))+":"+to_string(uvc_get_bus_number(dev));
+                ci[dev_struct_count].bus_loc = i;
                 dev_struct_count++;
             }
             printf("Got desc\n");
@@ -90,6 +92,7 @@ void getCamInfo(struct CamInfo *ci){
 
 void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingInfo *si){
     uvc_error_t res;
+    uvc_device_t **devicelist;
 
     for(int i = 0; i<2;i++){
         res = uvc_init(&si[i].ctx, NULL);
@@ -99,20 +102,21 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
         else{
             printf("UVC %d open success\n", i);
         }
-        res = uvc_find_device(si[i].ctx, &si[i].dev, 0, 0, NULL);
+        res = uvc_find_devices(si[i].ctx, &devicelist, 0, 0, NULL);
         if (res < 0) {
             uvc_perror(res, "uvc_init");
         }
         else{
-            cout << "Dev: " << si[i].dev << endl;
+            cout << "Dev " << i << ": " << si[i].dev << endl;
         }
-        res = uvc_open(si[i].dev, &si[i].devh, 0);
+        res = uvc_open(devicelist[ci[i].bus_loc], &si[i].devh, 1);
         if (res < 0) {
             uvc_perror(res, "uvc_find_device"); /* no devices found */
         }
         else{
-            cout << "devh: " << si[i].devh << endl;
+            cout << "devh " << i << ": " << si[i].devh << endl;
         }
+        printf("\n\n\n");
     }
 }
 
