@@ -80,7 +80,6 @@ int getCamInfo (int i) {
     return retval;
 }
 
-
 void callback(uvc_stream_handle_t *hand, string winname){
     uvc_frame_t *frame;
     uvc_frame_t *bgr;
