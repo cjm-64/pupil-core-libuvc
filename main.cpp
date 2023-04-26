@@ -188,7 +188,7 @@ int main(int argc, char* argv[]) {
         }
         else {
             printf("Right found\n");
-            res = uvc_open(devicelist[device_iterators[0]], &righteyecam, 0);
+            res = uvc_open(devicelist[device_iterators[0]], &righteyecam, 1);
             if (res < 0) {
                 uvc_perror(res, "uvc_open"); /* unable to open device */
             }
@@ -203,7 +203,7 @@ int main(int argc, char* argv[]) {
                     fps = 10000000 / right_frame_desc->intervals[2];
                 }
                 printf("\nRight eye format: (%4s) %dx%d %dfps\n", right_format_desc->fourccFormat, width, height, fps);
-                res = uvc_get_stream_ctrl_format_size(righteyecam, &righteyectrl,right_frame_format, width, height, fps, 0);
+                res = uvc_get_stream_ctrl_format_size(righteyecam, &righteyectrl,right_frame_format, width, height, fps, 1);
                 if (res < 0){
                     uvc_perror(res, "start_streaming");
                 }
@@ -211,7 +211,7 @@ int main(int argc, char* argv[]) {
                     printf("Right stream ctrl formatted\n");
                     printf("\n\nRight eye stream controls\n");
                     uvc_print_stream_ctrl(&righteyectrl, stderr);
-                    res = uvc_stream_open_ctrl(righteyecam, &righteyestrmh, &righteyectrl, 0);
+                    res = uvc_stream_open_ctrl(righteyecam, &righteyestrmh, &righteyectrl, 1);
                     if (res < 0){
                         uvc_perror(res, "start_streaming");
                     }
@@ -250,7 +250,7 @@ int main(int argc, char* argv[]) {
         }
         else {
             printf("Left found\n");
-            res = uvc_open(devicelist[device_iterators[1]], &lefteyecam, 0);
+            res = uvc_open(devicelist[device_iterators[1]], &lefteyecam, 1);
             if (res < 0) {
                 uvc_perror(res, "uvc_open"); /* unable to open device */
             }
@@ -265,7 +265,7 @@ int main(int argc, char* argv[]) {
                     fps = 10000000 / left_frame_desc->intervals[2];
                 }
                 printf("\nLeft eye format: (%4s) %dx%d %dfps\n", left_format_desc->fourccFormat, width, height, fps);
-                res = uvc_get_stream_ctrl_format_size(lefteyecam, &lefteyectrl,left_frame_format, width, height, fps, 0);
+                res = uvc_get_stream_ctrl_format_size(lefteyecam, &lefteyectrl,left_frame_format, width, height, fps, 1);
                 if (res < 0){
                     uvc_perror(res, "start_streaming");
                 }
@@ -273,7 +273,7 @@ int main(int argc, char* argv[]) {
                     printf("Left stream ctrl formatted\n");
                     printf("\n\nLeft eye stream controls\n");
                     uvc_print_stream_ctrl(&lefteyectrl, stderr);
-                    res = uvc_stream_open_ctrl(lefteyecam, &lefteyestrmh, &lefteyectrl, 0);
+                    res = uvc_stream_open_ctrl(lefteyecam, &lefteyestrmh, &lefteyectrl, 1);
                     if (res < 0){
                         uvc_perror(res, "start_streaming");
                     }
