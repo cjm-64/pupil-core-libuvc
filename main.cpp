@@ -254,6 +254,7 @@ int main(int argc, char* argv[]) {
         }
         cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
         cout << "Total runs: " << run_count << endl;
+        cout << "Avg fps: " << run_count/atoi(argv[1]) << endl;
     }
 
     for(int k = 0; k<2; k++){
