@@ -18,6 +18,19 @@
 using namespace std;
 using namespace cv;
 
+//Circle
+int thresh_val = 50; //Threshold Value
+int max_rad = 50; //Radius value
+int thresh_max_val = 100; //Max threshold value
+int thresh_type = 1; //Type of threshold, read OCV documentation
+int CED = 1; //For Circle tracking, read OCV documentation
+int Cent_D = 1; //For Circle tracking, read OCV documentation
+Scalar col = Scalar(0, 255, 0); // green
+
+int X_Point = 0; //X of center of tracked circle (pupil)
+int Y_Point = 0; //Y of center of tracked circle (pupil)
+int Radius = 0; //Radius of tracked circle (pupil)
+
 struct CamSettings{
     string CamName;
     int width;
@@ -164,9 +177,10 @@ void callback(struct StreamingInfo *si){
     Mat image;
 
     for (int i = 0; i<2;i++){
-        res = uvc_stream_get_frame(si[i].strmh, &frame, 1* pow(10,5));
+        res = uvc_stream_get_frame(si[i].strmh, &frame, 1* pow(10,6));
         if(res < 0){
             uvc_perror(res, "Failed to get frame");
+            continue;
         }
         else{
             printf("got frame");
@@ -177,9 +191,8 @@ void callback(struct StreamingInfo *si){
         int frameH = frame->height;
         long unsigned int frameBytes = frame->data_bytes;
 
-        printf("callback! frame_format = %d, width = %d, height = %d, length = %lu\n",frame->frame_format, frameW, frameH, frameBytes);
+        printf("Eye %d: frame_format = %d, width = %d, height = %d, length = %lu\n", i, frame->frame_format, frameW, frameH, frameBytes);
 
-        cout << "Format: YUYV" << endl;
         bgr = uvc_allocate_frame(frameW * frameH * 3);
         if (!bgr) {
             printf("unable to allocate bgr frame!\n");
@@ -191,28 +204,55 @@ void callback(struct StreamingInfo *si){
         }
         Mat placeholder(bgr->height, bgr->width, CV_8UC3, bgr->data);
         placeholder.copyTo(image);
-        placeholder.release();
-        uvc_free_frame(bgr);
 
         Mat adjusted;
         flip(image, adjusted, 0);
-//    namedWindow(winname, WINDOW_AUTOSIZE);
-        printf("create win\n");
-        imshow(to_string(i),adjusted);
+
+        Mat grayIMG, binaryIMG, bpcIMG;
+        cvtColor(adjusted, grayIMG, COLOR_BGR2GRAY);
+        threshold(grayIMG, binaryIMG, thresh_val, thresh_max_val, thresh_type); //gray to binary
+        cvtColor(binaryIMG, bpcIMG, COLOR_GRAY2RGB);
+
+        vector<Vec3f> circles;
+        HoughCircles(binaryIMG, circles, HOUGH_GRADIENT, 1, 1000, CED, Cent_D, max_rad-2, max_rad);
+        Vec3i c;
+        for( size_t i = 0; i < circles.size(); i++ ){
+            c = circles[i];
+        }
+
+        X_Point = c[0];
+        Y_Point = c[1];
+        Radius = c[2];
+        cout << "X: " << X_Point << " Y: " << Y_Point << " Rad: " << Radius << endl;
+
+        //Draw Circles and Box On Black and White
+        circle(bpcIMG, Point(X_Point, Y_Point), 1, col,1,LINE_8);
+        circle(bpcIMG, Point(X_Point, Y_Point), Radius, col,1,LINE_8);
+
+
+        //Display image
+        imshow(to_string(i),bpcIMG);
         printf("img shown\n");
         if(i == 0){
-            moveWindow(to_string(i), 200, 200);
+            moveWindow(to_string(i), 500, 200);
+            //Move right eye to right
         }
         else{
-            moveWindow(to_string(i), 450, 200);
+            moveWindow(to_string(i), 200, 200);
+            //Move left eye to left
         }
         waitKey(1);
         printf("waitkeyed\n");
-        adjusted.release();
-        placeholder.release();
-        image.release();
-    }
 
+        //Free memory
+        adjusted.release();
+        image.release();
+        placeholder.release();
+        grayIMG.release();
+        binaryIMG.release();
+        bpcIMG.release();
+        uvc_free_frame(bgr);
+    }
 }
 
 int main(int argc, char* argv[]) {
