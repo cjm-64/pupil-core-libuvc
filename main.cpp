@@ -90,12 +90,19 @@ void getCamInfo(struct CamInfo *ci){
                 continue;
             }
             else{
+                string name = desc->product;
+                cout << "Cam " << i << " name: " << name << endl;
+                if (name.substr(name.size()-1, 1) == "0"){
+                    dev_struct_count = 0;
+                }
+                else{
+                    dev_struct_count = 1;
+                }
                 ci[dev_struct_count].CamName = desc->product;
                 ci[dev_struct_count].vID = desc->idVendor;
                 ci[dev_struct_count].pID = desc->idProduct;
                 ci[dev_struct_count].uid = to_string(uvc_get_device_address(dev))+":"+to_string(uvc_get_bus_number(dev));
-                ci[dev_struct_count].cam_num = i;
-                dev_struct_count++;
+                ci[dev_struct_count].cam_num = dev_struct_count;
             }
             printf("Got desc\n");
         }
