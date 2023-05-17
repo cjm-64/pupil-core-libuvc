@@ -171,7 +171,7 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
 
 void callback(struct StreamingInfo *si){
     uvc_frame_t *frame;
-    uvc_frame_t *bgr;
+    uvc_frame_t *gry;
     uvc_error_t res;
 
     Mat image;
@@ -193,45 +193,25 @@ void callback(struct StreamingInfo *si){
 
         printf("Eye %d: frame_format = %d, width = %d, height = %d, length = %lu\n", i, frame->frame_format, frameW, frameH, frameBytes);
 
-        bgr = uvc_allocate_frame(frameW * frameH * 3);
-        if (!bgr) {
+        gry = uvc_allocate_frame(frameW * frameH * 3);
+        if (!gry) {
             printf("unable to allocate bgr frame!\n");
             return;
         }
-        uvc_error_t res = uvc_yuyv2bgr(frame, bgr);
+        uvc_error_t res = uvc_yuyv2y(frame, gry);
         if (res < 0){
             printf("Unable to copy frame to bgr!\n");
         }
-        Mat placeholder(bgr->height, bgr->width, CV_8UC3, bgr->data);
+
+        // Iterate from CV_8UC1 to CV_8UC4 and see which one works
+        Mat placeholder(gry->height, gry->width, CV_8UC3, gry->data);
         placeholder.copyTo(image);
 
         Mat adjusted;
         flip(image, adjusted, 0);
 
-        Mat grayIMG, binaryIMG, bpcIMG;
-        cvtColor(adjusted, grayIMG, COLOR_BGR2GRAY);
-        threshold(grayIMG, binaryIMG, thresh_val, thresh_max_val, thresh_type); //gray to binary
-        cvtColor(binaryIMG, bpcIMG, COLOR_GRAY2RGB);
-
-        vector<Vec3f> circles;
-        HoughCircles(binaryIMG, circles, HOUGH_GRADIENT, 1, 1000, CED, Cent_D, max_rad-2, max_rad);
-        Vec3i c;
-        for( size_t i = 0; i < circles.size(); i++ ){
-            c = circles[i];
-        }
-
-        X_Point = c[0];
-        Y_Point = c[1];
-        Radius = c[2];
-        cout << "X: " << X_Point << " Y: " << Y_Point << " Rad: " << Radius << endl;
-
-        //Draw Circles and Box On Black and White
-        circle(bpcIMG, Point(X_Point, Y_Point), 1, col,1,LINE_8);
-        circle(bpcIMG, Point(X_Point, Y_Point), Radius, col,1,LINE_8);
-
-
         //Display image
-        imshow(to_string(i),bpcIMG);
+        imshow(to_string(i),adjusted);
         printf("img shown\n");
         if(i == 0){
             moveWindow(to_string(i), 500, 200);
@@ -248,10 +228,7 @@ void callback(struct StreamingInfo *si){
         adjusted.release();
         image.release();
         placeholder.release();
-        grayIMG.release();
-        binaryIMG.release();
-        bpcIMG.release();
-        uvc_free_frame(bgr);
+        uvc_free_frame(gry);
     }
 }
 
