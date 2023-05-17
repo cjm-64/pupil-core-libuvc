@@ -207,6 +207,7 @@ void callback(struct StreamingInfo *si){
         Mat placeholder(gry->height, gry->width, CV_8UC3, gry->data);
         placeholder.copyTo(image);
 
+
         Mat adjusted;
         flip(image, adjusted, 0);
 
