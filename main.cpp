@@ -186,7 +186,6 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
             printf("Eye %d stream control formatted\n", i);
 //            uvc_print_stream_ctrl(&si[i].ctrl, stderr);
         }
-
         res = uvc_stream_open_ctrl(si[i].devh, &si[i].strmh, &si[i].ctrl,1);
         if (res < 0){
             uvc_perror(res, "start_streaming");
