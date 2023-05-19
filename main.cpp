@@ -19,17 +19,7 @@ using namespace std;
 using namespace cv;
 
 //Circle
-int thresh_val = 50; //Threshold Value
-int max_rad = 50; //Radius value
-int thresh_max_val = 100; //Max threshold value
-int thresh_type = 1; //Type of threshold, read OCV documentation
-int CED = 1; //For Circle tracking, read OCV documentation
-int Cent_D = 1; //For Circle tracking, read OCV documentation
 Scalar col = Scalar(0, 255, 0); // green
-
-int X_Point = 0; //X of center of tracked circle (pupil)
-int Y_Point = 0; //Y of center of tracked circle (pupil)
-int Radius = 0; //Radius of tracked circle (pupil)
 
 struct CamSettings{
     string CamName;
@@ -77,13 +67,13 @@ void getCamInfo(struct CamInfo *ci){
     int i = 0;
     int dev_struct_count = 0;
     while (true) {
-        cout << i << endl;
         dev = device_list[i];
         if (dev == NULL) {
             break;
         }
         else{
             uvc_get_device_descriptor(dev, &desc);
+            printf("Got desc\n");
             if(desc->idVendor != 3141){
                 printf("World Cam\n");
                 i++;
@@ -91,20 +81,20 @@ void getCamInfo(struct CamInfo *ci){
             }
             else{
                 string name = desc->product;
-                cout << "Cam " << i << " name: " << name << endl;
                 if (name.substr(name.size()-1, 1) == "0"){
+                    cout << "Right Eye Camera: " << name << endl;
                     dev_struct_count = 0;
                 }
                 else{
+                    cout << "Left Eye Camera: " << name << endl;
                     dev_struct_count = 1;
                 }
                 ci[dev_struct_count].CamName = desc->product;
                 ci[dev_struct_count].vID = desc->idVendor;
                 ci[dev_struct_count].pID = desc->idProduct;
                 ci[dev_struct_count].uid = to_string(uvc_get_device_address(dev))+":"+to_string(uvc_get_bus_number(dev));
-                ci[dev_struct_count].cam_num = dev_struct_count;
+                ci[dev_struct_count].cam_num = i;
             }
-            printf("Got desc\n");
         }
         uvc_free_device_descriptor(desc);
         i++;
@@ -112,11 +102,46 @@ void getCamInfo(struct CamInfo *ci){
     uvc_exit(ctx);
 }
 
+void streamTests(struct CamSettings *cs, struct CamInfo *ci, struct StreamingInfo *si){
+    uvc_error_t res;
+    uvc_device_t **devicelist;
+    uvc_device_t *dev;
+    uvc_device_descriptor_t *desc;
+
+    for (int i = 0;i<2;++i) {
+        res = uvc_init(&si[i].ctx, NULL);
+        if (res < 0) {
+            uvc_perror(res, "uvc_init");
+        }
+        else{
+            printf("UVC %d open success\n", i);
+        }
+        res = uvc_find_devices(si[i].ctx, &devicelist, 0, 0, NULL);
+        if (res < 0) {
+            uvc_perror(res, "uvc_init");
+        }
+        for (int j = 0; j < 3; ++j){
+            dev = devicelist[j];
+            uvc_get_device_descriptor(dev, &desc);
+            cout << "Dev " << j << ": " << dev << " Name: " << desc->product << endl;
+        }
+        res = uvc_open(devicelist[ci[i].cam_num], &si[i].devh, 1);
+        if (res < 0) {
+            uvc_perror(res, "uvc_find_device"); /* no devices found */
+        }
+        else{
+            cout << "devh " << i << ": " << si[i].devh << endl;
+        }
+    }
+}
+
 void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingInfo *si){
     uvc_error_t res;
     uvc_device_t **devicelist;
+    uvc_device_t *dev;
+    uvc_device_descriptor_t *desc;
 
-    for(int i = 0; i<2;i++){
+    for(int i = 0; i<2;++i){
         res = uvc_init(&si[i].ctx, NULL);
         if (res < 0) {
             uvc_perror(res, "uvc_init");
@@ -129,7 +154,12 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
             uvc_perror(res, "uvc_init");
         }
         else{
-            cout << "Dev " << i << ": " << si[i].dev << endl;
+            printf("Got device list\n");
+        }
+        for (int j = 0; j < 3; ++j){
+            dev = devicelist[j];
+            uvc_get_device_descriptor(dev, &desc);
+            cout << "Dev " << j << ": " << dev << " Name: " << desc->product << endl;
         }
         res = uvc_open(devicelist[ci[i].cam_num], &si[i].devh, 1);
         if (res < 0) {
@@ -154,7 +184,7 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
         }
         else{
             printf("Eye %d stream control formatted\n", i);
-            uvc_print_stream_ctrl(&si[i].ctrl, stderr);
+//            uvc_print_stream_ctrl(&si[i].ctrl, stderr);
         }
 
         res = uvc_stream_open_ctrl(si[i].devh, &si[i].strmh, &si[i].ctrl,1);
@@ -164,7 +194,6 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
         else{
             printf("Eye %d stream opened\n", i);
         }
-
         res = uvc_stream_start(si[i].strmh, nullptr, nullptr,2.0,0);
         if (res < 0){
             uvc_perror(res, "start_streaming");
@@ -178,13 +207,13 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
 
 void callback(struct StreamingInfo *si){
     uvc_frame_t *frame;
-    uvc_frame_t *gry;
+    uvc_frame_t *rgb;
     uvc_error_t res;
 
     Mat image;
 
     for (int i = 0; i<2;i++){
-        res = uvc_stream_get_frame(si[i].strmh, &frame, 1* pow(10,6));
+        res = uvc_stream_get_frame(si[i].strmh, &frame, 1 * pow(10,6));
         if(res < 0){
             uvc_perror(res, "Failed to get frame");
             continue;
@@ -200,18 +229,18 @@ void callback(struct StreamingInfo *si){
 
         printf("Eye %d: frame_format = %d, width = %d, height = %d, length = %lu\n", i, frame->frame_format, frameW, frameH, frameBytes);
 
-        gry = uvc_allocate_frame(frameW * frameH * 3);
-        if (!gry) {
+        rgb = uvc_allocate_frame(frameW * frameH * 3);
+        if (!rgb) {
             printf("unable to allocate bgr frame!\n");
             return;
         }
-        uvc_error_t res = uvc_yuyv2y(frame, gry);
+        uvc_error_t res = uvc_yuyv2rgb(frame, rgb);
         if (res < 0){
             printf("Unable to copy frame to bgr!\n");
         }
 
         // Iterate from CV_8UC1 to CV_8UC4 and see which one works
-        Mat placeholder(gry->height, gry->width, CV_8UC3, gry->data);
+        Mat placeholder(rgb->height, rgb->width, CV_8UC3, rgb->data);
         placeholder.copyTo(image);
 
 
@@ -236,7 +265,7 @@ void callback(struct StreamingInfo *si){
         adjusted.release();
         image.release();
         placeholder.release();
-        uvc_free_frame(gry);
+        uvc_free_frame(rgb);
     }
 }
 
@@ -257,31 +286,31 @@ int main(int argc, char* argv[]) {
     CamInfo Cameras[2];
     getCamInfo(Cameras);
     for (int j = 0; j<2; j++){
-        cout << "Cam " << j << ": " << Cameras[j].CamName << " " << Cameras[j].uid << " " << Cameras[j].vID << " " << Cameras[j].pID << endl;
+        cout << "Cam " << j << ": " << Cameras[j].CamName << " " << Cameras[j].uid << " " << Cameras[j].vID << " " << Cameras[j].pID << " " << Cameras[j].cam_num << endl;
     }
 
     StreamingInfo CamStreams[2];
     setUpStreams(camSets, Cameras, CamStreams);
 
-    if (atoi(argv[1]) < 1){
-        printf("No run cam\n");
-    }
-    else{
-        int run_count = 0;
-        auto start = chrono::system_clock::now();
-        auto curr_time = chrono::system_clock::now();
-        chrono::duration<double> elapsed_seconds = curr_time-start;
-        while (elapsed_seconds.count() < atoi(argv[1])){
-            callback(CamStreams);
-            curr_time = chrono::system_clock::now();
-            elapsed_seconds = curr_time-start;
-            run_count = run_count + 1;
-        }
-        cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
-        cout << "Total runs: " << run_count << endl;
-        cout << "Avg fps: " << run_count/atoi(argv[1]) << endl;
-    }
-
+//    if (atoi(argv[1]) < 1){
+//        printf("No run cam\n");
+//    }
+//    else{
+//        int run_count = 0;
+//        auto start = chrono::system_clock::now();
+//        auto curr_time = chrono::system_clock::now();
+//        chrono::duration<double> elapsed_seconds = curr_time-start;
+//        while (elapsed_seconds.count() < atoi(argv[1])){
+//            callback(CamStreams);
+//            curr_time = chrono::system_clock::now();
+//            elapsed_seconds = curr_time-start;
+//            run_count = run_count + 1;
+//        }
+//        cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
+//        cout << "Total runs: " << run_count << endl;
+//        cout << "Avg fps: " << run_count/atoi(argv[1]) << endl;
+//    }
+//
     for(int k = 0; k<2; k++){
         uvc_exit(CamStreams[k].ctx);
     }
