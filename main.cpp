@@ -154,19 +154,20 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
             uvc_perror(res, "uvc_init");
         }
         else{
-            printf("Got device list\n");
+            for (int j = 0; j < 3; ++j){
+                dev = devicelist[j];
+                uvc_get_device_descriptor(dev, &desc);
+                cout << "   Dev " << j << ": " << dev << " Name: " << desc->product << endl;
+            }
         }
-        for (int j = 0; j < 3; ++j){
-            dev = devicelist[j];
-            uvc_get_device_descriptor(dev, &desc);
-            cout << "Dev " << j << ": " << dev << " Name: " << desc->product << endl;
-        }
+
         res = uvc_open(devicelist[ci[i].cam_num], &si[i].devh, 1);
         if (res < 0) {
             uvc_perror(res, "uvc_find_device"); /* no devices found */
         }
         else{
             cout << "devh " << i << ": " << si[i].devh << endl;
+            cout << "Name " << i << ": " << ci[i].CamName << endl;
         }
         si[i].format_desc = uvc_get_format_descs(si[i].devh);
         si[i].frame_desc = si[i].format_desc->frame_descs->next;
@@ -184,7 +185,7 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
         }
         else{
             printf("Eye %d stream control formatted\n", i);
-//            uvc_print_stream_ctrl(&si[i].ctrl, stderr);
+            uvc_print_stream_ctrl(&si[i].ctrl, stderr);
         }
         res = uvc_stream_open_ctrl(si[i].devh, &si[i].strmh, &si[i].ctrl,1);
         if (res < 0){
@@ -193,7 +194,7 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
         else{
             printf("Eye %d stream opened\n", i);
         }
-        res = uvc_stream_start(si[i].strmh, nullptr, nullptr,2.0,0);
+        res = uvc_stream_start(si[i].strmh, nullptr, nullptr,1.6,0);
         if (res < 0){
             uvc_perror(res, "start_streaming");
         }
@@ -310,6 +311,15 @@ int main(int argc, char* argv[]) {
 //        cout << "Avg fps: " << run_count/atoi(argv[1]) << endl;
 //    }
 //
+    for(int l = 0; l<2; ++l){
+        cout << "Stream " << l << ":" << endl;
+        cout << "   " << CamStreams[l].ctx << endl;
+        cout << "   " << CamStreams[l].devh << endl;
+        cout << "   " << &CamStreams[l].ctrl << endl;
+        cout << "   " << CamStreams[l].strmh << endl;
+        printf("\n\n");
+    }
+
     for(int k = 0; k<2; k++){
         uvc_exit(CamStreams[k].ctx);
     }
