@@ -292,25 +292,25 @@ int main(int argc, char* argv[]) {
     StreamingInfo CamStreams[2];
     setUpStreams(camSets, Cameras, CamStreams);
 
-//    if (atoi(argv[1]) < 1){
-//        printf("No run cam\n");
-//    }
-//    else{
-//        int run_count = 0;
-//        auto start = chrono::system_clock::now();
-//        auto curr_time = chrono::system_clock::now();
-//        chrono::duration<double> elapsed_seconds = curr_time-start;
-//        while (elapsed_seconds.count() < atoi(argv[1])){
-//            callback(CamStreams);
-//            curr_time = chrono::system_clock::now();
-//            elapsed_seconds = curr_time-start;
-//            run_count = run_count + 1;
-//        }
-//        cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
-//        cout << "Total runs: " << run_count << endl;
-//        cout << "Avg fps: " << run_count/atoi(argv[1]) << endl;
-//    }
-//
+    if (atoi(argv[1]) < 1){
+        printf("No run cam\n");
+    }
+    else{
+        int run_count = 0;
+        auto start = chrono::system_clock::now();
+        auto curr_time = chrono::system_clock::now();
+        chrono::duration<double> elapsed_seconds = curr_time-start;
+        while (elapsed_seconds.count() < atoi(argv[1])){
+            callback(CamStreams);
+            curr_time = chrono::system_clock::now();
+            elapsed_seconds = curr_time-start;
+            run_count = run_count + 1;
+        }
+        cout << "Total time: " << elapsed_seconds.count() << "s" << endl;
+        cout << "Total runs: " << run_count << endl;
+        cout << "Avg fps: " << run_count/atoi(argv[1]) << endl;
+    }
+
     for(int l = 0; l<2; ++l){
         cout << "Stream " << l << ":" << endl;
         cout << "   " << CamStreams[l].ctx << endl;
