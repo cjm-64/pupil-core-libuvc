@@ -18,6 +18,9 @@
 using namespace std;
 using namespace cv;
 
+//Decompression
+tjhandle decompressor = tjInitDecompress();
+
 //Circle
 Scalar col = Scalar(0, 255, 0); // green
 
@@ -170,8 +173,9 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
             cout << "Name " << i << ": " << ci[i].CamName << endl;
         }
         si[i].format_desc = uvc_get_format_descs(si[i].devh);
+        si[i].format_desc = si[i].format_desc->next;
         si[i].frame_desc = si[i].format_desc->frame_descs->next;
-        si[i].frame_format = UVC_FRAME_FORMAT_ANY;
+        si[i].frame_format = UVC_FRAME_FORMAT_MJPEG;
         if(si[i].frame_desc->wWidth != NULL){
             cs[i].width = si[i].frame_desc->wWidth;
             cs[i].height = si[i].frame_desc->wHeight;
@@ -206,8 +210,7 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
 }
 
 void callback(struct StreamingInfo *si){
-    uvc_frame_t *frame;
-    uvc_frame_t *rgb;
+    uvc_frame_t *frame, *rgb;
     uvc_error_t res;
 
     Mat image;
@@ -229,18 +232,25 @@ void callback(struct StreamingInfo *si){
 
         printf("Eye %d: frame_format = %d, width = %d, height = %d, length = %lu\n", i, frame->frame_format, frameW, frameH, frameBytes);
 
-        rgb = uvc_allocate_frame(frameW * frameH * 3);
-        if (!rgb) {
-            printf("unable to allocate bgr frame!\n");
-            return;
-        }
-        uvc_error_t res = uvc_yuyv2rgb(frame, rgb);
-        if (res < 0){
-            printf("Unable to copy frame to bgr!\n");
-        }
+//        rgb = uvc_allocate_frame(frameW * frameH * 3);
+//        if (!rgb) {
+//            printf("unable to allocate bgr frame!\n");
+//            return;
+//        }
+//        uvc_error_t res = uvc_yuyv2rgb(frame, rgb);
+//        if (res < 0){
+//            printf("Unable to copy frame to bgr!\n");
+//        }
+
+        long unsigned int _jpegSize = frameBytes; //!< _jpegSize from above
+        int jpegSubsamp, width, height;
+        unsigned char buffer[frameW*frameH*3];
+        tjDecompress2(decompressor, (unsigned char *)frame->data, _jpegSize, buffer, frameW, 0, frameH, TJPF_RGB, TJFLAG_FASTDCT);
+
+
 
         // Iterate from CV_8UC1 to CV_8UC4 and see which one works
-        Mat placeholder(rgb->height, rgb->width, CV_8UC3, rgb->data);
+        Mat placeholder(frameH, frameW, CV_8UC3, buffer);
         placeholder.copyTo(image);
 
 
