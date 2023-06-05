@@ -24,20 +24,16 @@ tjhandle decompressor = tjInitDecompress();
 //Circle
 Scalar col = Scalar(0, 255, 0); // green
 
-struct CamSettings{
-    string CamName;
-    int width;
-    int height;
-    int fps;
-};
-
 // ID0 = right, ID1 = Left, ID2 = World
 struct CamInfo{
     string CamName;
+    int CamNum;
+    int width;
+    int height;
+    int fps;
     uint8_t vID;
     uint8_t pID;
     string uid;
-    int cam_num;
 };
 
 struct StreamingInfo{
@@ -68,7 +64,7 @@ void getCamInfo(struct CamInfo *ci){
         uvc_perror(res, "uvc_find_device");
     }
     int i = 0;
-    int dev_struct_count = 0;
+    int Right_or_Left = 0; //0 = Right; 1 = Left
     while (true) {
         dev = device_list[i];
         if (dev == NULL) {
@@ -77,27 +73,25 @@ void getCamInfo(struct CamInfo *ci){
         else{
             uvc_get_device_descriptor(dev, &desc);
             printf("Got desc\n");
-            if(desc->idVendor != 3141){
-                printf("World Cam\n");
-                i++;
-                continue;
+            if((string)desc->product == "Pupil Cam2 ID0"){
+                cout << "Right Eye Camera: " << desc->product << endl;
+                Right_or_Left = 0;
+            }
+            else if((string)desc->product == "Pupil Cam2 ID1"){
+                cout << "Left Eye Camera: " << desc->product << endl;
+                Right_or_Left = 1;
             }
             else{
-                string name = desc->product;
-                if (name.substr(name.size()-1, 1) == "0"){
-                    cout << "Right Eye Camera: " << name << endl;
-                    dev_struct_count = 0;
-                }
-                else{
-                    cout << "Left Eye Camera: " << name << endl;
-                    dev_struct_count = 1;
-                }
-                ci[dev_struct_count].CamName = desc->product;
-                ci[dev_struct_count].vID = desc->idVendor;
-                ci[dev_struct_count].pID = desc->idProduct;
-                ci[dev_struct_count].uid = to_string(uvc_get_device_address(dev))+":"+to_string(uvc_get_bus_number(dev));
-                ci[dev_struct_count].cam_num = i;
+                cout << "World Camera: " << desc->product << endl;
+                i++;
+                uvc_free_device_descriptor(desc);
+                continue;
             }
+            ci[Right_or_Left].CamName = desc->product;
+            ci[Right_or_Left].vID = desc->idVendor;
+            ci[Right_or_Left].pID = desc->idProduct;
+            ci[Right_or_Left].uid = to_string(uvc_get_device_address(dev))+":"+to_string(uvc_get_bus_number(dev));
+            ci[Right_or_Left].CamNum = i;
         }
         uvc_free_device_descriptor(desc);
         i++;
@@ -128,7 +122,7 @@ void streamTests(struct CamSettings *cs, struct CamInfo *ci, struct StreamingInf
             uvc_get_device_descriptor(dev, &desc);
             cout << "Dev " << j << ": " << dev << " Name: " << desc->product << endl;
         }
-        res = uvc_open(devicelist[ci[i].cam_num], &si[i].devh, 1);
+        res = uvc_open(devicelist[ci[i].CamNum], &si[i].devh, 1);
         if (res < 0) {
             uvc_perror(res, "uvc_find_device"); /* no devices found */
         }
@@ -138,7 +132,7 @@ void streamTests(struct CamSettings *cs, struct CamInfo *ci, struct StreamingInf
     }
 }
 
-void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingInfo *si){
+void setUpStreams(struct CamInfo *ci, struct StreamingInfo *si){
     uvc_error_t res;
     uvc_device_t **devicelist;
     uvc_device_t *dev;
@@ -164,7 +158,7 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
             }
         }
 
-        res = uvc_open(devicelist[ci[i].cam_num], &si[i].devh, 1);
+        res = uvc_open(devicelist[ci[i].CamNum], &si[i].devh, 1);
         if (res < 0) {
             uvc_perror(res, "uvc_find_device"); /* no devices found */
         }
@@ -177,13 +171,13 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
         si[i].frame_desc = si[i].format_desc->frame_descs->next;
         si[i].frame_format = UVC_FRAME_FORMAT_MJPEG;
         if(si[i].frame_desc->wWidth != NULL){
-            cs[i].width = si[i].frame_desc->wWidth;
-            cs[i].height = si[i].frame_desc->wHeight;
-            cs[i].fps = 10000000 / si[i].frame_desc->intervals[2];
+            ci[i].width = si[i].frame_desc->wWidth;
+            ci[i].height = si[i].frame_desc->wHeight;
+            ci[i].fps = 10000000 / si[i].frame_desc->intervals[2];
         }
-        printf("\nEye %d format: (%4s) %dx%d %dfps\n", i, si[i].format_desc->fourccFormat, cs[i].width, cs[i].height, cs[i].fps);
+        printf("\nEye %d format: (%4s) %dx%d %dfps\n", i, si[i].format_desc->fourccFormat, ci[i].width, ci[i].height, ci[i].fps);
 
-        res = uvc_get_stream_ctrl_format_size(si[i].devh, &si[i].ctrl, si[i].frame_format, cs[i].width, cs[i].height, cs[i].fps, 1);
+        res = uvc_get_stream_ctrl_format_size(si[i].devh, &si[i].ctrl, si[i].frame_format, ci[i].width, ci[i].height, ci[i].fps, 1);
         if (res < 0){
             uvc_perror(res, "start_streaming");
         }
@@ -210,7 +204,7 @@ void setUpStreams(struct CamSettings *cs, struct CamInfo *ci, struct StreamingIn
 }
 
 void callback(struct StreamingInfo *si){
-    uvc_frame_t *frame, *rgb;
+    uvc_frame_t *frame;
     uvc_error_t res;
 
     Mat image;
@@ -222,7 +216,7 @@ void callback(struct StreamingInfo *si){
             continue;
         }
         else{
-            printf("got frame");
+            printf("got frame\n");
         }
 
         //Allocate buffers for conversions
@@ -232,75 +226,87 @@ void callback(struct StreamingInfo *si){
 
         printf("Eye %d: frame_format = %d, width = %d, height = %d, length = %lu\n", i, frame->frame_format, frameW, frameH, frameBytes);
 
-//        rgb = uvc_allocate_frame(frameW * frameH * 3);
-//        if (!rgb) {
-//            printf("unable to allocate bgr frame!\n");
-//            return;
-//        }
-//        uvc_error_t res = uvc_yuyv2rgb(frame, rgb);
-//        if (res < 0){
-//            printf("Unable to copy frame to bgr!\n");
-//        }
-
-        long unsigned int _jpegSize = frameBytes; //!< _jpegSize from above
-        int jpegSubsamp, width, height;
-        unsigned char buffer[frameW*frameH*3];
-        tjDecompress2(decompressor, (unsigned char *)frame->data, _jpegSize, buffer, frameW, 0, frameH, TJPF_RGB, TJFLAG_FASTDCT);
-
-
-
-        // Iterate from CV_8UC1 to CV_8UC4 and see which one works
-        Mat placeholder(frameH, frameW, CV_8UC3, buffer);
-        placeholder.copyTo(image);
-
-
-        Mat adjusted;
-        flip(image, adjusted, 0);
-
-        //Display image
-        imshow(to_string(i),adjusted);
-        printf("img shown\n");
-        if(i == 0){
-            moveWindow(to_string(i), 500, 200);
-            //Move right eye to right
+        if (frame->frame_format == 7){
+            printf("Frame Format: MJPEG\n");
+            long unsigned int _jpegSize = frameBytes; //!< _jpegSize from above
+            int jpegSubsamp, width, height;
+            unsigned char buffer[frameW*frameH*3];
+            tjDecompress2(decompressor, (unsigned char *)frame->data, _jpegSize, buffer, frameW, 0, frameH, TJPF_RGB, TJFLAG_FASTDCT);
+            Mat placeholder(frameH, frameW, CV_8UC3, buffer);
+            placeholder.copyTo(image);
+            placeholder.release();
+        }
+        else if (frame->frame_format == 3){
+            printf("Frame Format: Other\n");
+            uvc_frame_t *rgb;
+            rgb = uvc_allocate_frame(frameW * frameH * 3);
+            if (!rgb) {
+                printf("unable to allocate bgr frame!\n");
+                return;
+            }
+            uvc_error_t res = uvc_yuyv2rgb(frame, rgb);
+            if (res < 0){
+                printf("Unable to copy frame to bgr!\n");
+            }
+            Mat placeholder(rgb->height, rgb->width, CV_8UC3, rgb->data);
+            placeholder.copyTo(image);
+            placeholder.release();
+            uvc_free_frame(rgb);
         }
         else{
-            moveWindow(to_string(i), 200, 200);
-            //Move left eye to left
+            printf("Error, somehow you got to a frame format that doesn't exist\n");
+        }
+        Mat final_image;
+        if (i == 0) {
+            flip(image, final_image, 0);
+        }
+        else {
+            image.copyTo(final_image);
+        }
+
+
+        //Display image
+        imshow(to_string(i),final_image);
+        printf("img shown\n");
+        if(i == 0){
+            moveWindow(to_string(i), 100, 100);
+            //Move right eye to left
+        }
+        else{
+            moveWindow(to_string(i), 400, 100);
+            //Move left eye to right
         }
         waitKey(1);
         printf("waitkeyed\n");
 
         //Free memory
-        adjusted.release();
+        final_image.release();
         image.release();
-        placeholder.release();
-        uvc_free_frame(rgb);
+        printf("released\n");
     }
 }
 
 int main(int argc, char* argv[]) {
-    CamSettings camSets[2];
+
+    CamInfo CameraInfo[2];
     for(int i = 0; i<2;i++){
         if(i == 0){
-            camSets[i].CamName = "Pupil Cam2 ID0";
+            CameraInfo[i].CamName = "Pupil Cam2 ID0";
         }
         else{
-            camSets[i].CamName = "Pupil Cam2 ID1";
+            CameraInfo[i].CamName = "Pupil Cam2 ID1";
         }
-        camSets[i].width = 192;
-        camSets[i].height = 192;
-        camSets[i].fps = 120;
+        CameraInfo[i].width = 192;
+        CameraInfo[i].height = 192;
+        CameraInfo[i].fps = 120;
     }
-
-    CamInfo Cameras[2];
-    getCamInfo(Cameras);
+    getCamInfo(CameraInfo);
     for (int j = 0; j<2; j++){
-        cout << "Cam " << j << ": " << Cameras[j].CamName << " " << Cameras[j].uid << " " << Cameras[j].vID << " " << Cameras[j].pID << " " << Cameras[j].cam_num << endl;
+        cout << "Cam " << j << ": \n" << CameraInfo[j].CamName << endl;
     }
 
     StreamingInfo CamStreams[2];
-    setUpStreams(camSets, Cameras, CamStreams);
+    setUpStreams(CameraInfo, CamStreams);
 
     if (atoi(argv[1]) < 1){
         printf("No run cam\n");
@@ -321,16 +327,27 @@ int main(int argc, char* argv[]) {
         cout << "Avg fps: " << run_count/atoi(argv[1]) << endl;
     }
 
-    for(int l = 0; l<2; ++l){
-        cout << "Stream " << l << ":" << endl;
-        cout << "   " << CamStreams[l].ctx << endl;
-        cout << "   " << CamStreams[l].devh << endl;
-        cout << "   " << &CamStreams[l].ctrl << endl;
-        cout << "   " << CamStreams[l].strmh << endl;
-        printf("\n\n");
-    }
-
+//    for(int l = 0; l<2; ++l){
+//        cout << "Stream " << l << ":" << endl;
+//        cout << "   " << CamStreams[l].ctx << endl;
+//        cout << "   " << CamStreams[l].devh << endl;
+//        cout << "   " << &CamStreams[l].ctrl << endl;
+//        cout << "   " << CamStreams[l].strmh << endl;
+//        printf("\n\n");
+//    }
+//
     for(int k = 0; k<2; k++){
+//        cout << "Camera " << k << ": " <<
+//            "\n   Name: " << CameraInfo[k].CamName <<
+//            "\n    Num: " << CameraInfo[k].CamNum <<
+//            "\n  Width: " << CameraInfo[k].width <<
+//            "\n Height: " << CameraInfo[k].height <<
+//            "\n    FPS: " << CameraInfo[k].fps <<
+//            "\n    vID: " << CameraInfo[k].vID <<
+//            "\n    pID: " << CameraInfo[k].pID <<
+//            "\n    uid: " << CameraInfo[k].uid <<
+//        endl;
+//
         uvc_exit(CamStreams[k].ctx);
     }
 
