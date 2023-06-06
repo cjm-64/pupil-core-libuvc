@@ -58,7 +58,6 @@ void getCamInfo(struct CamInfo *ci){
     if(res < 0) {
         uvc_perror(res, "uvc_init");
     }
-
     res = uvc_get_device_list(ctx,&device_list);
     if (res < 0) {
         uvc_perror(res, "uvc_find_device");
